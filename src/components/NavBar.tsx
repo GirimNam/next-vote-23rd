@@ -14,7 +14,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: "VOTING", href: "#" },
   { label: "MEMBERS", href: "/members" },
-  { label: "ABOUT US", href: "#" },
+  { label: "ABOUT US", href: "/about" },
 ];
 
 export default function NavBar({ className }: { className?: string }) {

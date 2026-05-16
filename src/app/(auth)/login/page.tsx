@@ -4,9 +4,8 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, LoginForm } from "@/schemas/login";
-// 백엔드 연동 시 주석 처리 부분 사용 예정
-//import { setAccessToken } from "@/lib/auth";
-//import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
 
 export default function Login() {
   const {
@@ -23,28 +22,27 @@ export default function Login() {
     },
   });
 
-  //const router = useRouter();
+  const router = useRouter();
+  const { login } = useAuth();
   const username = watch("username");
   const password = watch("password");
 
-  const onSubmit = async (data: LoginForm) => {
+  const onSubmit = async (_data: LoginForm) => {
     try {
-      {
-        /*
+      /* 백엔드 연동 시 주석 해제
       const res = await fetch("/api/auth/login", {
-         method: "POST",
-         headers: { "Content-Type": "application/json" },
-         body: JSON.stringify(data),
-         credentials: "include", 
-       });
-       const { accessToken } = await res.json();
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      const { accessToken } = await res.json();
+      login(accessToken);
+      */
 
-       setAccessToken(accessToken);
-
-       router.push("/home"); */
-      }
-
-      console.log("로그인 시도:", data);
+      // 임시: API 연동 전까지 더미 토큰으로 로그인 처리
+      login("dummy-token");
+      router.push("/members");
     } catch (error) {
       console.error("로그인 실패:", error);
     }

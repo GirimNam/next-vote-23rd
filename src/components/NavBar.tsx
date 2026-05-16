@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NavItem {
   label: string;
@@ -14,12 +15,18 @@ const NAV_ITEMS: NavItem[] = [
   { label: "VOTING", href: "#" },
   { label: "MEMBERS", href: "/members" },
   { label: "ABOUT US", href: "#" },
-  { label: "LOGIN", href: "/login" },
 ];
 
 export default function NavBar({ className }: { className?: string }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const { isLoggedIn, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
 
   return (
     <div className={className}>
@@ -40,6 +47,21 @@ export default function NavBar({ className }: { className?: string }) {
               {item.label}
             </Link>
           ))}
+          {isLoggedIn ? (
+            <button
+              onClick={handleLogout}
+              className="text-blue-500 cursor-pointer"
+            >
+              LOGOUT
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              className={pathname === "/login" ? "text-blue-500" : "text-white"}
+            >
+              LOGIN
+            </Link>
+          )}
         </div>
       </div>
 
@@ -78,11 +100,30 @@ export default function NavBar({ className }: { className?: string }) {
                 key={item.label}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                className={`text-2xl font-bold ${pathname === item.href ? "text-blue-400" : "text-white"}`}
+                className={`text-2xl font-bold ${pathname === item.href ? "text-blue-500" : "text-white"}`}
               >
                 {item.label}
               </Link>
             ))}
+            {isLoggedIn ? (
+              <button
+                onClick={() => {
+                  handleLogout();
+                  setOpen(false);
+                }}
+                className="text-2xl font-bold text-blue-500 cursor-pointer"
+              >
+                LOGOUT
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setOpen(false)}
+                className={`text-2xl font-bold ${pathname === "/login" ? "text-blue-500" : "text-white"}`}
+              >
+                LOGIN
+              </Link>
+            )}
           </div>
         </div>
       )}

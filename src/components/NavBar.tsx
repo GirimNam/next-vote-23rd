@@ -3,29 +3,63 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useMemo, useState } from "react";
+import { useAuthStore } from "@/store/authStore";
+import { logout as logoutApi } from "@/api/auth";
+import LoginRequiredModal from "@/components/LoginRequiredModal";
 
 interface NavItem {
   label: string;
   href: string;
+  protected?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "VOTING", href: "#" },
-  { label: "MEMBERS", href: "/members" },
+  { label: "VOTING", href: "/voting", protected: true },
+  { label: "MEMBERS", href: "/members", protected: true },
   { label: "ABOUT US", href: "/about" },
 ];
+
+const PROTECTED_PATHS = NAV_ITEMS.filter((i) => i.protected).map((i) => i.href);
 
 export default function NavBar({ className }: { className?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const { isLoggedIn, logout } = useAuth();
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [blockedPath, setBlockedPath] = useState<string | undefined>(undefined);
+  const isLoggedIn = useAuthStore((s) => s.accessToken !== null);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
 
-  const handleLogout = () => {
-    logout();
-    router.push("/login");
+  // Proxy
+  const guardedRouter = useMemo(
+    () =>
+      new Proxy(router, {
+        get(target, prop, receiver) {
+          if (prop === "push") {
+            return (href: string, options?: Parameters<typeof router.push>[1]) => {
+              if (!isLoggedIn && PROTECTED_PATHS.some((p) => href.startsWith(p))) {
+                setBlockedPath(href);
+                setShowLoginModal(true);
+                return Promise.resolve(true);
+              }
+              return target.push(href, options);
+            };
+          }
+          return Reflect.get(target, prop, receiver);
+        },
+      }),
+    [router, isLoggedIn],
+  );
+
+  const handleLogout = async () => {
+    try {
+      await logoutApi();
+      console.log("로그아웃 성공");
+    } finally {
+      clearAuth();
+      router.push("/login");
+    }
   };
 
   return (
@@ -40,6 +74,10 @@ export default function NavBar({ className }: { className?: string }) {
             <Link
               key={item.label}
               href={item.href}
+              onClick={(e) => {
+                e.preventDefault();
+                guardedRouter.push(item.href);
+              }}
               className={
                 pathname === item.href ? "text-blue-500" : "text-white"
               }
@@ -50,7 +88,7 @@ export default function NavBar({ className }: { className?: string }) {
           {isLoggedIn ? (
             <button
               onClick={handleLogout}
-              className="text-blue-500 cursor-pointer"
+              className="text-white cursor-pointer"
             >
               LOGOUT
             </button>
@@ -65,7 +103,7 @@ export default function NavBar({ className }: { className?: string }) {
         </div>
       </div>
 
-      {/* 모바일 헤더 */}
+      {/* 모바일 */}
       <div className="flex md:hidden items-center justify-between w-full px-6 py-4">
         <span className="text-caption1  leading-tight">
           CEOS
@@ -82,7 +120,6 @@ export default function NavBar({ className }: { className?: string }) {
         </button>
       </div>
 
-      {/* 모바일 드로어 */}
       {open && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="flex-1" onClick={() => setOpen(false)} />
@@ -99,7 +136,11 @@ export default function NavBar({ className }: { className?: string }) {
               <Link
                 key={item.label}
                 href={item.href}
-                onClick={() => setOpen(false)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setOpen(false);
+                  guardedRouter.push(item.href);
+                }}
                 className={`text-2xl font-bold ${pathname === item.href ? "text-blue-500" : "text-white"}`}
               >
                 {item.label}
@@ -111,7 +152,7 @@ export default function NavBar({ className }: { className?: string }) {
                   handleLogout();
                   setOpen(false);
                 }}
-                className="text-2xl font-bold text-blue-500 cursor-pointer"
+                className="text-2xl font-bold text-white cursor-pointer"
               >
                 LOGOUT
               </button>
@@ -126,6 +167,13 @@ export default function NavBar({ className }: { className?: string }) {
             )}
           </div>
         </div>
+      )}
+
+      {showLoginModal && (
+        <LoginRequiredModal
+          onClose={() => setShowLoginModal(false)}
+          redirectTo={blockedPath}
+        />
       )}
     </div>
   );

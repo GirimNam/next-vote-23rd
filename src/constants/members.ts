@@ -4,6 +4,8 @@ export interface Member {
   name: string;
   isExecutive: boolean;
   isLeader: boolean;
+  school?: string;
+  department?: string;
 }
 
 export const MEMBERS: Record<Part, Member[]> = {

@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { TEAM_MEMBERS, TEAM_NAMES } from "@/constants/teams";
+import axios from "axios";
+import { TEAM_NAMES } from "@/constants/teams";
 import { signupSchema, SignupForm } from "@/schemas/signup";
+import { signup } from "@/api/auth";
+import { getCandidates } from "@/api/candidate";
 
 type DropdownProps = {
   label: string;
@@ -78,6 +82,23 @@ function Dropdown({
 }
 
 export default function Signup() {
+  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [apiFieldErrors, setApiFieldErrors] = useState<{
+    email?: string;
+    username?: string;
+    member?: string;
+    passwordRe?: string;
+  }>({});
+  const clearApiFieldError = (field: keyof typeof apiFieldErrors) =>
+    setApiFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   const {
     register,
     control,
@@ -104,10 +125,32 @@ export default function Signup() {
   const email = watch("email");
   const passwordRe = watch("passwordRe");
 
-  const memberOptions =
-    team && TEAM_MEMBERS[part][team as keyof (typeof TEAM_MEMBERS)["frontend"]]
-      ? TEAM_MEMBERS[part][team as keyof (typeof TEAM_MEMBERS)["frontend"]]
-      : [];
+  const [memberOptions, setMemberOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!team) {
+      setMemberOptions([]);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getCandidates({
+          part: part.toUpperCase(),
+          team,
+        });
+        if (cancelled) return;
+        setMemberOptions(res.success && res.data ? res.data.map((c) => c.name) : []);
+      } catch {
+        if (!cancelled) setMemberOptions([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [part, team]);
 
   const handlePartChange = (next: SignupForm["part"]) => {
     if (next === part) return;
@@ -116,13 +159,63 @@ export default function Signup() {
     setValue("member", "");
   };
 
-  const onSubmit = (data: SignupForm) => {
-    console.log(data);
-    // TODO: 회원가입 API 연동
+  const onSubmit = async (data: SignupForm) => {
+    setServerError(null);
+    setApiFieldErrors({});
+    setSubmitting(true);
+    try {
+      const res = await signup({
+        username: data.username,
+        password: data.password,
+        passwordConfirm: data.passwordRe,
+        email: data.email,
+        name: data.member,
+        part: data.part.toUpperCase(),
+        team: data.team,
+      });
+
+      if (res.success) {
+        setShowSuccessModal(true);
+        return;
+      }
+
+      handleSignupError(res.error?.code, res.error?.message);
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const apiError = err.response?.data?.error;
+        handleSignupError(apiError?.code, apiError?.message);
+      } else {
+        setServerError("회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSignupError = (code?: string, message?: string) => {
+    switch (code) {
+      case "U003":
+        setApiFieldErrors({ username: message ?? "이미 사용 중인 아이디입니다." });
+        break;
+      case "U004":
+        setApiFieldErrors({ email: message ?? "이미 사용 중인 이메일입니다." });
+        break;
+      case "U001":
+        setApiFieldErrors({ passwordRe: message ?? "비밀번호가 일치하지 않습니다." });
+        break;
+      case "U002":
+        setApiFieldErrors({ member: message ?? "선택한 후보 정보가 올바르지 않습니다." });
+        break;
+      case "U005":
+        setApiFieldErrors({ member: message ?? "이미 가입된 후보입니다." });
+        break;
+      default:
+        setServerError(message ?? "회원가입에 실패했습니다.");
+    }
   };
 
   return (
-    <main className="flex flex-col gap-[1.88rem] w-full px-[1.25rem] md:w-[34.375rem] md:px-0">
+    <main className="flex flex-col gap-[1.88rem] w-full px-5 md:w-137.5 md:px-0">
       <p className="text-[1.25rem] font-extrabold leading-[135%] tracking-[-0.00125rem] py-3 border-b">
         SIGNUP
       </p>
@@ -136,7 +229,7 @@ export default function Signup() {
               key={p}
               type="button"
               onClick={() => handlePartChange(p)}
-              className={`w-1/2 md:w-[17.1875rem] h-[3.1875rem] border border-black text-label2 cursor-pointer transition-colors ${rounded} ${
+              className={`w-1/2 md:w-68.75 h-12.75 border border-black text-label2 cursor-pointer transition-colors ${rounded} ${
                 selected ? "bg-black text-white" : "bg-white text-black"
               }`}
             >
@@ -173,43 +266,59 @@ export default function Signup() {
                 value={field.value}
                 placeholder="이름을 선택해 주세요"
                 options={memberOptions}
-                onChange={field.onChange}
+                onChange={(v) => {
+                  field.onChange(v);
+                  clearApiFieldError("member");
+                }}
                 disabled={!team}
               />
             )}
           />
         </div>
 
-        <label className="flex items-center mt-[1.88rem]">
-          <span className="text-label1 w-[5rem] md:w-[8.75rem] shrink-0 md:whitespace-nowrap">
+        <p className="text-label2 text-red-500 py-2 pl-3 min-h-10">
+          {apiFieldErrors.member ?? " "}
+        </p>
+
+        <label className="flex items-center">
+          <span className="text-label1 w-20 md:w-35 shrink-0 md:whitespace-nowrap">
             아이디
           </span>
           <input
             type="text"
-            {...register("username")}
+            {...register("username", {
+              onChange: () => clearApiFieldError("username"),
+            })}
             placeholder="아이디를 입력해 주세요"
             className="flex-1 border-b border-black outline-none p-3"
           />
         </label>
 
-        <label className="flex items-center mt-[1.88rem]">
-          <span className="text-label1 w-[5rem] md:w-[8.75rem] shrink-0 md:whitespace-nowrap">
+        <p className="text-label2 text-red-500 py-2 ml-20 md:ml-35 pl-3 min-h-10">
+          {apiFieldErrors.username ?? " "}
+        </p>
+
+        <label className="flex items-center">
+          <span className="text-label1 w-20 md:w-35 shrink-0 md:whitespace-nowrap">
             이메일
           </span>
           <input
             type="email"
-            {...register("email")}
+            {...register("email", {
+              onChange: () => clearApiFieldError("email"),
+            })}
             placeholder="이메일을 입력해 주세요"
             className="flex-1 border-b border-black outline-none p-3"
           />
         </label>
 
-        <p className="text-label2 text-red-500 py-2 ml-[5rem] md:ml-[8.75rem] pl-3 min-h-[2.5rem]">
-          {email.length > 0 && errors.email ? errors.email.message : " "}
+        <p className="text-label2 text-red-500 py-2 ml-20 md:ml-35 pl-3 min-h-10">
+          {apiFieldErrors.email ??
+            (email.length > 0 && errors.email ? errors.email.message : " ")}
         </p>
 
         <label className="flex items-center">
-          <span className="text-label1 w-[5rem] md:w-[8.75rem] shrink-0 md:whitespace-nowrap">
+          <span className="text-label1 w-20 md:w-35 shrink-0 md:whitespace-nowrap">
             비밀번호
           </span>
           <input
@@ -221,30 +330,59 @@ export default function Signup() {
         </label>
 
         <label className="flex items-center mt-[1.88rem]">
-          <span className="text-label1 w-[5rem] md:w-[8.75rem] shrink-0 md:whitespace-nowrap">
+          <span className="text-label1 w-20 md:w-35 shrink-0 md:whitespace-nowrap">
             비밀번호 재확인
           </span>
           <input
             type="password"
-            {...register("passwordRe")}
+            {...register("passwordRe", {
+              onChange: () => clearApiFieldError("passwordRe"),
+            })}
             placeholder="비밀번호를 다시 입력해 주세요"
             className="flex-1 border-b border-black outline-none p-3"
           />
         </label>
 
-        <p className="text-label2 text-red-500 py-2 ml-[5rem] md:ml-[8.75rem] pl-3 min-h-[2.5rem]">
-          {passwordRe.length > 0 && errors.passwordRe
-            ? errors.passwordRe.message
-            : " "}
+        <p className="text-label2 text-red-500 py-2 ml-20 md:ml-35 pl-3 min-h-10">
+          {apiFieldErrors.passwordRe ??
+            (passwordRe.length > 0 && errors.passwordRe
+              ? errors.passwordRe.message
+              : " ")}
         </p>
+
+        {serverError && (
+          <p className="text-label2 text-red-500 py-2 text-center">
+            {serverError}
+          </p>
+        )}
 
         <button
           type="submit"
-          className="w-full py-4 bg-black text-white text-label1 cursor-pointer mt-[0.69rem]"
+          disabled={submitting}
+          className="w-full py-4 bg-black text-white text-label1 cursor-pointer mt-[0.69rem] disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          회원가입하기
+          {submitting ? "처리 중..." : "회원가입하기"}
         </button>
       </form>
+
+      {showSuccessModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-6"
+        >
+          <div className="w-full max-w-68 bg-[#191F28] text-white rounded-xl p-5 flex flex-col gap-4">
+            <p className="text-label2 text-center">가입이 완료되었습니다.</p>
+            <button
+              type="button"
+              onClick={() => router.push("/login")}
+              className="w-full py-2.5 bg-white text-black text-label2 cursor-pointer rounded-lg"
+            >
+              로그인하러 가기
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

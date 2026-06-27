@@ -1,83 +1,113 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
-import { MEMBERS, Part } from "@/constants/members";
-import MemberCard from "./MemberCard";
+import Image from "next/image";
+import MemberCard from "@/components/MemberCard";
+import { MEMBERS, type Part } from "@/constants/members";
+import { useAuthStore } from "@/store/authStore";
 
-const TAB_LABELS: Record<Part, string> = {
+const PARTS: Part[] = ["PM", "DESIGN", "FRONTEND", "BACKEND"];
+
+const PART_LABELS: Record<Part, string> = {
   PM: "PM",
   DESIGN: "DESIGN",
-  FRONTEND: "FRONT - END",
-  BACKEND: "BACK - END",
+  FRONTEND: "FRONT -\nEND",
+  BACKEND: "BACK -\nEND",
 };
 
-export default function Members() {
-  const [selectedPart, setSelectedPart] = useState<Part>("FRONTEND");
+const PART_LABELS_MOBILE: Record<Part, string> = {
+  PM: "PM",
+  DESIGN: "DESIGN",
+  FRONTEND: "FRONT-END",
+  BACKEND: "BACK-END",
+};
 
-  const members = MEMBERS[selectedPart].filter((m) => !m.isExecutive);
-  const executives = MEMBERS[selectedPart].filter((m) => m.isExecutive);
+function getInitialPart(userPart: string | undefined): Part {
+  const upper = userPart?.toUpperCase();
+  if (upper === "FRONTEND" || upper === "BACKEND") {
+    return upper;
+  }
+  return "FRONTEND";
+}
+
+export default function Members() {
+  const userPart = useAuthStore((state) => state.user?.part);
+  const [selected, setSelected] = useState<Part>(() => getInitialPart(userPart));
 
   return (
-    <main className="px-6 py-8 md:flex md:gap-8">
-      <div className="relative w-full mb-8 md:hidden">
-        <Image
-          src="/figures/figure-small-membertab.svg"
-          alt=""
-          width={349}
-          height={106}
-          className="w-full"
-        />
-        <div className="absolute top-[51%] left-[8%] right-0 h-[43%] flex items-center justify-around">
-          {(Object.keys(TAB_LABELS) as Part[]).map((part) => (
-            <button
-              key={part}
-              onClick={() => setSelectedPart(part)}
-              className={`text-xs cursor-pointer whitespace-nowrap ${
-                selectedPart === part ? "font-bold underline" : "font-medium"
-              }`}
-            >
-              {TAB_LABELS[part]}
-            </button>
-          ))}
+    <main className="w-full">
+      <div className="md:hidden pt-6 px-5">
+        <div className="relative w-87.25 h-26.5">
+          <Image
+            src="/figures/figure-small-membertab.svg"
+            alt=""
+            aria-hidden
+            fill
+            className="object-contain"
+          />
+          <div className="absolute top-13.75 left-6.75 w-79 h-11 flex items-center justify-around">
+            {PARTS.map((part) => (
+              <button
+                key={part}
+                type="button"
+                onClick={() => setSelected(part)}
+                className={`text-[13px] leading-tight text-black cursor-pointer ${
+                  selected === part ? "font-bold underline" : "font-normal"
+                }`}
+              >
+                {PART_LABELS_MOBILE[part]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <h1 className="mt-8 text-[32px] font-bold leading-[135%] tracking-[-0.032px] text-black">
+          23th MEMBERS
+        </h1>
+
+        <div className="mt-4 grid grid-cols-2 gap-x-5.25 gap-y-5 pb-8">
+          {MEMBERS[selected]
+            .filter((m) => !m.isExecutive)
+            .map((m) => (
+              <MemberCard
+                key={m.name}
+                name={m.name}
+                school={m.school}
+                department={m.department}
+              />
+            ))}
         </div>
       </div>
 
-      <div className="hidden md:block relative shrink-0 w-59.25 h-99">
-        <Image
-          src="/figures/figure-big-membertab.svg"
-          alt=""
-          fill
-          sizes="237px"
-        />
-
-        <div className="absolute top-[3%] left-[5%] w-[65%] h-[72%] flex flex-col items-start justify-around pl-6">
-          {(Object.keys(TAB_LABELS) as Part[]).map((part) => (
+      <div className="hidden md:block relative min-h-250">
+        <h1 className="absolute top-38.75 left-160 text-[32px] font-bold leading-[135%] tracking-[-0.032px] text-black">
+          23th MEMBERS
+        </h1>
+        <div className="absolute top-59 left-160 grid grid-cols-2 gap-x-5.25 gap-y-5">
+          {MEMBERS[selected]
+            .filter((member) => !member.isExecutive)
+            .map((member) => (
+              <MemberCard
+                key={member.name}
+                name={member.name}
+                school={member.school}
+                department={member.department}
+              />
+            ))}
+        </div>
+        <div className="absolute top-45.75 left-24.25 flex flex-col items-start justify-between w-38.75 h-72 p-5 border border-black">
+          <span className="absolute -right-17.75 -bottom-24 w-37.25 h-44 bg-[#F2F4F6] -z-10" />
+          {PARTS.map((part) => (
             <button
               key={part}
-              onClick={() => setSelectedPart(part)}
-              className={`text-sm cursor-pointer whitespace-nowrap ${
-                selectedPart === part ? "font-bold underline" : "font-medium"
+              type="button"
+              onClick={() => setSelected(part)}
+              className={`text-left text-xl leading-[135%] tracking-[-0.02px] text-black cursor-pointer whitespace-pre-line ${
+                selected === part ? "font-bold underline" : "font-normal"
               }`}
             >
-              {TAB_LABELS[part]}
+              {PART_LABELS[part]}
             </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex-1">
-        <h2 className="text-3xl font-bold mb-6">23RD MEMBERS</h2>
-        <div className="grid grid-cols-2 gap-3 mb-12">
-          {members.map((member) => (
-            <MemberCard key={member.name} name={member.name} isLeader={member.isLeader} />
-          ))}
-        </div>
-
-        <h2 className="text-3xl font-bold mb-6">EXECUTIVES</h2>
-        <div className="grid grid-cols-2 gap-3">
-          {executives.map((member) => (
-            <MemberCard key={member.name} name={member.name} isLeader={member.isLeader} />
           ))}
         </div>
       </div>

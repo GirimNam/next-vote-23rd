@@ -44,7 +44,9 @@ export default function VotingDemoday() {
         console.error("데모데이 투표 실패 ", status, ", code:", code, axiosErr.response.data);
 
         if (status === 409 || code === "V005") {
-          setVoteError("이미 투표하셨습니다.");
+          localStorage.setItem("voted_demoday", "1");
+          router.push("/voting/result/demoday");
+          return;
         } else if (status === 410 || code === "V006") {
           setVoteError("이미 마감된 투표입니다.");
         } else if (code === "V004") {

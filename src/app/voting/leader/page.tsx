@@ -49,7 +49,9 @@ export default function VotingLeader() {
         console.error("파트장 투표 실패", status, ", code:", code, axiosErr.response.data);
 
         if (status === 409 || code === "V005") {
-          setVoteError("이미 투표하셨습니다.");
+          localStorage.setItem("voted_leader", "1");
+          router.push(`/voting/result/leader?part=${part.toUpperCase()}`);
+          return;
         } else if (status === 410 || code === "V006") {
           setVoteError("이미 마감된 투표입니다.");
         } else if (code === "V002") {
